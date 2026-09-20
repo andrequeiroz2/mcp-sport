@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "f1-telemetry": {
+      "command": "/home/andre/DEV/mcp/mcp-sport/.venv/bin/python3.13",
+      "args": ["/home/andre/DEV/mcp/mcp-sport/src/mcp_sport/server.py"]
+    }
+  }
+}
