@@ -55,6 +55,24 @@ Framework principal do servidor. É a camada de implementação usada no dia a d
 
 **Versão adotada:** `>= 4.0.5` (pin em `pyproject.toml`)
 
+### 3.1 MCP Apps (views HTML)
+
+Padrão adotado: **Custom HTML**. Sem dependência `prefab-ui`.
+
+| Peça | Referência |
+|---|---|
+| FastMCP Apps | https://gofastmcp.com/apps/overview |
+| SDK JS no iframe | `https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps` |
+| Repo e host de validação (`examples/basic-host`) | https://github.com/modelcontextprotocol/ext-apps |
+
+O SDK JS fica em **0.4.0** (mesma versão do exemplo oficial `qr-server`;
+wire protocol compatível com hosts 1.x e 2.x). CSP `resourceDomains` declara
+`unpkg.com` e `media.formula1.com`.
+
+O Cursor não renderiza MCP Apps (resultado cai no JSON). A validação visual
+é no `basic-host`. Detalhe de implementação: `docs/Architectural_Design.md`,
+seção 4.7.
+
 ## 4. MCP Python SDK
 
 SDK oficial de baixo nível, base do FastMCP. Consultar para detalhes de protocolo,

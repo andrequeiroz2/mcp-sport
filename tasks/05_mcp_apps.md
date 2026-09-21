@@ -1,6 +1,6 @@
 # Task 05 — MCP Apps: componentes visuais como resultado de tools
 
-> **Status:** Em andamento — spike de validação
+> **Status:** Concluída — spike validado; padrão em uso nas tasks 05 e 06
 > **Criada em:** 2026-09-21
 > **Documentos relacionados:** `docs/Technical_Reference.md` (fontes oficiais),
 > `docs/Architectural_Design.md`, `tasks/04_cache.md`
@@ -53,11 +53,11 @@ HTML com **foto do piloto** (`headshot_url` da OpenF1 via `get_drivers`) e
 
 ### Critérios de aceite do spike
 
-- [ ] `fastmcp[apps]` instalado e versão do `prefab-ui` (se usada) pinada
-- [ ] Tool retorna resource HTML válido segundo o protocolo MCP Apps
-- [ ] Cursor **renderiza** o HTML na conversa (fator limitante = suporte do host)
-- [ ] Fallback: se o host não renderiza, a tool ainda retorna texto/JSON útil
-- [ ] Fotos carregam (URLs externas da mídia F1)
+- [x] `fastmcp[apps]` — **não instalado**: FastMCP 4.0.5 já traz `AppConfig`/`ResourceCSP`; `prefab-ui` ficou de fora
+- [x] Tool retorna resource HTML válido segundo o protocolo MCP Apps
+- [x] Cursor **não** renderiza o HTML (2026-09-21); o fallback JSON funciona
+- [x] Fallback: se o host não renderiza, a tool ainda retorna texto/JSON útil
+- [x] Fotos carregam (URLs externas da mídia F1) no basic-host, via CSP
 
 ### Riscos / perguntas que o spike responde
 
@@ -68,10 +68,11 @@ HTML com **foto do piloto** (`headshot_url` da OpenF1 via `get_drivers`) e
 
 ## 5. Fases seguintes (após spike aprovado)
 
-- [ ] Task 05b: dashboard de telemetria de volta (car_data + location)
-- [ ] Decisão Prefab vs Custom HTML para o dashboard
-- [ ] Documentar padrão escolhido no `Architectural_Design.md`
-- [ ] Atualizar `Technical_Reference.md` com as libs de UI adotadas
+- [x] Task 06: race replay (Custom HTML) — concluída
+- [ ] Dashboard de telemetria de volta (car_data + location) — task futura
+- [x] Decisão Prefab vs Custom HTML: Custom HTML, sem `prefab-ui`
+- [x] Padrão documentado em `docs/Architectural_Design.md` (seção 4.7)
+- [x] `docs/Technical_Reference.md` (seção 3.1) registra o SDK JS e o basic-host
 
 ## 6. Log de execução
 
@@ -98,8 +99,9 @@ HTML com **foto do piloto** (`headshot_url` da OpenF1 via `get_drivers`) e
 
 **Implementação:**
 
-- `src/mcp_sport/tools/championship_view.py` — resource
+- `src/mcp_sport/apps/championship_view.py` — resource
   `ui://mcp-sport/standings.html` + tool `get_drivers_championship_view`
+  (o módulo nasceu em `tools/` e foi movido para `apps/`)
   que faz merge de `/championship_drivers` (pontos/posição) com
   `/drivers` (foto, nome, equipe, cor) e retorna JSON (fallback textual
   para hosts sem suporte a MCP Apps)
@@ -142,8 +144,8 @@ HTML com **foto do piloto** (`headshot_url` da OpenF1 via `get_drivers`) e
 ### Próximos passos possíveis (decisão pendente)
 
 - A. ~~Validar a renderização num host compatível~~ — **FEITO** ✅
-- B. Manter a tool como está (fallback JSON) e aguardar suporte do Cursor
-- C. Remover o spike e arquivar a task como "adiada até suporte do host"
+- B. Manter as views registradas (fallback JSON) até o Cursor renderizar MCP Apps — **caminho atual**
+- C. ~~Remover o spike~~ — descartado; o padrão virou o race replay (task 06)
 
 ### Notas da validação em host compatível (2026-09-21)
 

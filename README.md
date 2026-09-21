@@ -1,12 +1,17 @@
 # MCP Sport — F1 Telemetry MCP 🏎️
 
+![Animated race replay](assets/mcp_f1_race_view.png)
+
 An **MCP (Model Context Protocol)** server that exposes Formula 1 data from the
 [OpenF1 API](https://openf1.org/docs/) as tools for AI assistants
 (Claude Desktop, Cursor, MCP Inspector, etc.).
 
-Full coverage: **18 tools** matching the 18 documented OpenF1 endpoints —
+Full coverage: **18 data tools** matching the 18 documented OpenF1 endpoints —
 sessions, meetings, drivers, results, laps, pit stops, stints, telemetry,
-weather, championships and more.
+weather, championships and more. Two **MCP App views** sit on top of that
+data: a drivers standings board and an animated race replay. Hosts that
+render MCP Apps show the HTML. Cursor and Claude Desktop do not: they
+return the same payload as JSON.
 
 ## Stack
 
@@ -23,7 +28,7 @@ weather, championships and more.
 
 ```bash
 # Clone and install dependencies
-git clone <repo-url> mcp-sport
+git clone https://github.com/andrequeiroz2/mcp-sport.git mcp-sport
 cd mcp-sport
 uv sync
 ```
@@ -59,6 +64,56 @@ Add to the client's MCP configuration:
   }
 }
 ```
+
+The 18 data tools work in both clients. The views do not render there.
+
+### Views (MCP Apps)
+
+`get_drivers_championship_view` and `get_race_replay_view` return interactive
+HTML. **Cursor and Claude Desktop are incompatible with MCP Apps**: they
+ignore the UI and show the JSON payload. The MCP Inspector also treats the
+result as text.
+
+The views were validated in the official
+[basic-host](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host)
+from [`modelcontextprotocol/ext-apps`](https://github.com/modelcontextprotocol/ext-apps).
+The server must be HTTP, with CORS exposing the MCP session headers.
+Otherwise the browser cannot complete the Streamable HTTP handshake.
+
+Terminal 1 — MCP server on port 8765:
+
+```bash
+uv run python -c "
+import uvicorn
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from mcp_sport.server import mcp
+
+app = mcp.http_app(middleware=[Middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_methods=['*'],
+    allow_headers=['*'],
+    expose_headers=['mcp-session-id', 'mcp-protocol-version'],
+)])
+uvicorn.run(app, host='127.0.0.1', port=8765)
+"
+```
+
+Terminal 2 — basic-host (needs Node.js; `npm start` requires bun, so use `tsx`):
+
+```bash
+git clone --depth 1 https://github.com/modelcontextprotocol/ext-apps.git
+cd ext-apps/examples/basic-host
+npm install
+npm run build
+SERVERS='["http://127.0.0.1:8765/mcp"]' npx tsx serve.ts
+```
+
+Open `http://localhost:8080` (sandbox on `:8081`) and call
+`get_drivers_championship_view` or `get_race_replay_view`. After a change to
+the view HTML, hard-refresh the page (Ctrl+Shift+R) before running the tool
+again. The host caches the `ui://` resource.
 
 ## Available tools (18)
 
@@ -101,7 +156,10 @@ src/mcp_sport/
 ├── schemas/            # Pydantic: input (BaseInput) and output per endpoint
 ├── validators/         # Business validations per endpoint
 ├── services/           # Orchestration per endpoint
-└── tools/              # MCP tools (thin layer) per endpoint
+├── tools/              # MCP tools (thin layer) per endpoint
+└── apps/               # MCP App views (Custom HTML, ui:// resource)
+    ├── championship_view.py  # Drivers standings board
+    └── race_replay_view.py   # Animated race replay
 ```
 
 ## Canonical documentation
@@ -123,11 +181,11 @@ src/mcp_sport/
 
 - Historical data from **2023** onwards; real-time data requires a paid OpenF1 subscription
 - `session_result` and `starting_grid` return HTTP 404 until official results are published
-- Telemetry (`car_data`, `location`) returns 18–24k samples per session/driver —
-  operator filters (`speed>=315`, `date>...`) are on the roadmap (task 03)
+- Telemetry (`car_data`, `location`) returns 18–24k samples per session/driver.
+  Narrow the call with range filters such as `speed_min` and `date_from`/`date_to`
 - Championship endpoints are in **beta** on OpenF1
 
 ## License
 
-Personal study project. OpenF1 is an unofficial project, not associated in any
+[MIT](LICENSE). OpenF1 is an unofficial project, not associated in any
 way with the Formula 1 companies.

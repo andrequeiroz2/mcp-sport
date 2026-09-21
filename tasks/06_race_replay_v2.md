@@ -1,6 +1,6 @@
 # Task 06 — Race Replay v2: esteira, pneus, setores e pit
 
-> **Status:** Planejada — aguardando aprovação para implementar
+> **Status:** Concluída — validada visualmente no basic-host (2026-09-21)
 > **Criada em:** 2026-09-21
 > **Documentos relacionados:** `tasks/05_mcp_apps.md` (spike base validado),
 > `docs/Architectural_Design.md` (seção 4.7 — padrão `apps/`),
@@ -68,13 +68,19 @@ Convenção de cores da F1:
 | 🟢 **Verde** | Melhor setor **pessoal** do piloto até aquele momento |
 | 🟡 **Amarelo** | Pior que o melhor pessoal |
 
-**Decisão de implementação:** as cores são **pré-computadas no servidor**
-no estilo "ao vivo" (best-so-far: cada setor é comparado com os melhores
-tempos registrados até aquela volta, não com a corrida inteira). A view
-apenas renderiza a cor recebida — zero lógica de classificação no JS.
+**Decisão final (validação visual):** as cores são calculadas **na view,
+no instante do replay**. Só existe **um roxo por setor** naquele momento;
+quando o recorde cai, o detentor anterior volta a verde. O servidor ainda
+envia cores pré-computadas no payload, mas a view não as usa para pintar.
 
-Fonte: `/laps` (`duration_sector_1/2/3`, `lap_number`, `date_start`).
-Validado: setores presentes por volta (ex.: 24.267 / 33.672 / 25.637).
+A revelação é pela **fração da volta** (1/3, 2/3, 3/3), não pela soma dos
+tempos de setor — essa soma iguala a duração da volta e o S3 nunca
+aparecia. O setor permanece visível até o setor correspondente da volta
+seguinte ser revelado. Ao lado, o tempo total da volta em branco, formato
+`MM:SS:mmm` (ex.: 87.596 s → `01:27:596`).
+
+Fonte: `/laps` (`duration_sector_1/2/3`, `lap_duration`, `lap_number`,
+`date_start`).
 
 ### R5 — Status de PIT
 
@@ -87,20 +93,46 @@ Complemento: `/laps.is_pit_out_lap` marca a volta de saída.
 
 ### R6 — Indicador de Safety Car / VSC no topo
 
-Durante períodos de Safety Car ou Virtual Safety Car, o HUD exibe um
-banner no topo: **🟨 SAFETY CAR** ou **🟨 VSC**.
+Durante Safety Car, Virtual Safety Car ou corrida suspensa, um banner
+**centralizado no header** mostra `VIRTUAL SAFETY CAR`, `SAFETY CAR` ou
+`RACE SUSPENDED`. O bloco da direita (sessão, horário local, DRY/WET,
+temperaturas) permanece fixo.
 
-Fonte: `/race_control`, categoria `SafetyCar`. As janelas são derivadas
-dos pares de mensagens:
+Fonte: `/race_control`. Janelas derivadas dos pares de mensagens:
 
 | Mensagem | Efeito |
 |---|---|
-| `SAFETY CAR DEPLOYED` / `VSC DEPLOYED` | abre a janela |
-| `SAFETY CAR IN THIS LAP` / `VSC ENDING` | fecha a janela |
+| `SAFETY CAR DEPLOYED` / `VSC DEPLOYED` | abre SC/VSC |
+| `SAFETY CAR IN THIS LAP` / `VSC ENDING` | fecha SC/VSC |
+| `RED FLAG` (fronteira de palavra) ou `SUSPENDED` | abre RED |
+| `ENDING` / `RESUMED` / `RESTART` / `GREEN FLAG` | fecha RED |
 
-Validado em Barcelona 2026: 2 janelas de VSC (13:59–14:01 e 14:29–14:33).
-Setores nulos durante essas voltas continuam exibindo `—` (ver 5), e o
-banner deixa claro o motivo.
+`CHEQUERED FLAG` contém as letras de `RED FLAG`; a detecção usa `\bRED FLAG\b`
+para não abrir uma janela falsa no fim da prova. Janela cujo fechamento
+cai antes da abertura é ignorada.
+
+Validado em Barcelona 2026: 2 janelas de VSC. Setores nulos durante essas
+voltas continuam exibindo `—`, e o banner deixa claro o motivo.
+
+### R7 — Cabeçalho da prova
+
+País (bandeira), circuito, nome da sessão, horário de início no fuso do
+circuito (`gmt_offset`), condição DRY/WET e temperaturas (ar, pista,
+umidade) amostradas no instante do replay. Fontes: `/sessions`, `/meetings`,
+`/weather`.
+
+### R8 — Abandono
+
+`dnf` vira tag cinza permanente **OUT** a partir do fim da última volta
+completa; `dns` vira **DNS** desde t=0. O card escurece. Setores passam a
+`--`, o tempo de volta a `--:--:----`, e o gap (`+tempo`, `+N LAPS`,
+`LEADER`) some. Retardatário que segue na prova mantém o card normal e o
+badge `+N LAPS`. Fonte: `/session_result` (`dnf`, `dns`, `number_of_laps`).
+`dsq` não tem tag.
+
+### R9 — Velocidades do player
+
+`1x`, `10x`, `30x`, `60x` (padrão), `300x`.
 
 ## 3. Mapeamento de dados
 
@@ -110,9 +142,11 @@ banner deixa claro o motivo.
 | Grid inicial | `/position` (t=0) ou `/starting_grid` | — |
 | Esteira + contador de voltas | `/laps` (só líder) | `date_start`, `lap_duration`, `lap_number` |
 | Pneu atual | `/stints` | `compound`, `lap_start`, `lap_end` |
-| Setores + cores | `/laps` | `duration_sector_1/2/3` (cores pré-computadas no servidor) |
+| Setores + tempo de volta | `/laps` | `duration_sector_1/2/3`, `lap_duration` (cores ao vivo na view) |
 | Pit | `/pit` | `date`, `pit_duration`, `stop_duration` |
-| Safety Car / VSC | `/race_control` | `category='SafetyCar'`, `message`, `date` |
+| Safety Car / VSC / suspensa | `/race_control` | `category`, `flag`, `message`, `date` |
+| Cabeçalho | `/sessions`, `/meetings`, `/weather` | país, circuito, `date_start`, `gmt_offset`, temperaturas, `rainfall` |
+| Abandono | `/session_result` | `dnf`, `dns`, `number_of_laps` |
 | Cards (foto, cor, sigla) | `/drivers` | `headshot_url`, `team_colour`, `name_acronym` |
 
 ## 4. Payload (estimativa)
@@ -128,37 +162,47 @@ banner deixa claro o motivo.
 | drivers meta | 22 | ~4 KB |
 | **Total** | | **~200–250 KB** ✅ |
 
-Dentro do limite de 1 MB do cache e confortável para tool result.
+Confortável para tool result (bem abaixo de 1 MB). A view tool em si não
+entra nos grupos de cache — ver `docs/Cache_Strategy.md`, seção 4.
 
 ## 5. Casos de borda
 
-- **Setores nulos** (voltas de safety car, in/out laps): exibir `—` **e
-  banner Safety Car/VSC no topo** (R6) deixa claro o motivo
-- **Volta 1 sem setores completos** (largada): setores aparecem a partir
-  da primeira volta cronometrada
-- **DNF**: piloto para de gerar laps — card congela com badge **OUT**
-- **Retardatários**: manter comportamento da v1 (badge `+N LAPS`, opaco)
-- **`session_key='latest'`**: resolve para a última corrida concluída;
-  durante corrida ao vivo o replay é um snapshot (dados param no momento
-  da chamada) — documentar na docstring
+- **Relógio:** t0 é o início da volta 1 (lights-out), não a primeira
+  amostra de `/position`. Em Barcelona 2026 a formação começa ~54 min
+  antes; eventos anteriores a t0 ainda montam o grid em t=0
+- **Setores nulos** (voltas de safety car, in/out laps): exibir `—`; o
+  banner (R6) explica SC/VSC/suspensa
+- **Volta 1 sem setores completos** (largada): setores aparecem conforme
+  a fração da volta
+- **DNF / DNS:** ver R8. Retardatário não escurece
+- **`session_key` ausente ou vazio:** a view coerciona para `'latest'`
+  antes de chamar `/position`. Durante corrida ao vivo o replay é um
+  snapshot
+- **Erro de tool que não é JSON:** a view mostra o texto; não tenta
+  `JSON.parse`
 
 ## 6. Critérios de aceite
 
-- [ ] Grid alinhado pré-start na ordem de classificação
-- [ ] Esteira quadriculada em loop cuja velocidade acompanha o P1
-- [ ] Contador de voltas incrementa quando o líder "cruza" a faixa
-- [ ] Círculo de pneu correto por piloto a cada stint (S/M/H)
-- [ ] Setores com cores verde/amarelo/roxo (best-so-far, pré-computado)
-- [ ] Badge PIT durante a janela de parada
-- [ ] Banner SAFETY CAR / VSC no topo durante as janelas de neutralização
-- [ ] Fallback JSON continua funcionando em hosts sem MCP Apps
-- [ ] Validação visual no basic-host com Barcelona 2026 (session 11307)
+- [x] Grid alinhado pré-start na ordem de classificação
+- [x] Esteira quadriculada em loop cuja velocidade acompanha o P1
+- [x] Contador de voltas incrementa quando o líder "cruza" a faixa
+- [x] Círculo de pneu correto por piloto a cada stint (S/M/H)
+- [x] Setores verde/amarelo/roxo, um único roxo por setor no instante do replay
+- [x] Tempo total da volta em `MM:SS:mmm`
+- [x] Badge PIT durante a janela de parada
+- [x] Banner SC / VSC / corrida suspensa centralizado no header
+- [x] Cabeçalho com país, circuito, horário local e condição da pista
+- [x] Tag OUT/DNS, card escurecido, sem gap, setores e volta apagados
+- [x] Velocidades 1x / 10x / 30x / 60x (padrão) / 300x
+- [x] Fallback JSON em hosts sem MCP Apps (Cursor)
+- [x] Validação visual no basic-host (Barcelona 2026, session 11307)
 
 ## 7. Fora de escopo (v2)
 
 - Telemetria de velocidade/RPM (é o dashboard de volta — task futura)
-- DRS, mini-setores, bandeiras de pista (amarela, vermelha etc. — SC/VSC
-  **está** no escopo via R6)
+- DRS, mini-setores e bandeiras de setor (amarela etc.). SC, VSC e
+  bandeira vermelha **estão** no escopo via R6
+- Tag de desclassificação (`dsq`)
 - Modo "ao vivo" (polling durante corrida real)
 
 ## 8. Log de execução
@@ -181,10 +225,17 @@ Dentro do limite de 1 MB do cache e confortável para tool result.
 - Esteira quadriculada (padrão checker CSS) cujo scroll acompanha a fração
   da volta do líder; flash + incremento do contador `LAP n/N` ao cruzar
 - Círculo de pneu por stint (S/M/H/I/W com cores oficiais)
-- Setores revelados progressivamente conforme o tempo cumulativo da volta
-  passa; cores vêm prontas do payload
-- Badge PIT na janela da parada; banner 🟨 SC/VSC no topo
-- Grid pré-start: eventos de posição em t=0 ordenam o grid
+- Setores revelados pela fração da volta; cores recalculadas na view
+  (um roxo por setor). O payload ainda traz cores pré-computadas, não usadas
+- Badge PIT; banner central de SC/VSC/RED; cabeçalho com país, circuito,
+  horário local e clima
+- Grid pré-start: eventos anteriores a t0 (lights-out = início da volta 1)
+  ordenam o grid
+- Abandono: OUT/DNS, card escurecido, gap removido, setores `--`,
+  volta `--:--:----`
+- Player: 1x, 10x, 30x, 60x (padrão), 300x
+- `session_key` vazio vira `latest`; texto de erro da tool não é parseado
+  como JSON
 
 **Validações (Barcelona 2026, session 11307):**
 
@@ -195,4 +246,5 @@ Dentro do limite de 1 MB do cache e confortável para tool result.
 - [x] Cores: 20 roxos / 371 verdes / 3310 amarelos / 22 nulos — distribuição
       realista (roxos só em recordes)
 - [x] Sintaxe JS validada (`node --check`)
-- [ ] Validação visual no basic-host
+- [x] Validação visual no basic-host (iterações de cabeçalho, relógio,
+      cores ao vivo, abandono, tempo de volta e velocidades)

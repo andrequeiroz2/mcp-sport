@@ -133,6 +133,9 @@ Regras do fluxo:
   e **não decodifica chaves** — sufixos de operador (`>`, `>=`, `<`, `<=`)
   são enviados literais, concatenados ao valor sem separador `=` extra
 - Encapsula `HTTPError`/`URLError`/`JSONDecodeError` em `OpenF1APIError`
+- HTTP 429 e 503: até 4 tentativas. Honra `Retry-After` com teto de 15s;
+  sem o header, backoff de 1s, 2s e 4s. A última falha continua
+  `OpenF1APIError`. Log `event=openf1_retry` (warning)
 - Logs `openf1_request`/`openf1_response`/`openf1_error` (logger
   `mcp_sport.openf1`)
 
@@ -161,14 +164,38 @@ Cada módulo contém:
    retorna os dados da view como JSON texto (que é também o **fallback**
    para hosts sem suporte a MCP Apps — ex.: Cursor)
 
+Views registradas:
+
+| Tool | Resource | O que renderiza |
+|---|---|---|
+| `get_drivers_championship_view` | `ui://mcp-sport/standings.html` | Classificação de pilotos com foto e pontos (task 05) |
+| `get_race_replay_view` | `ui://mcp-sport/race-replay.html` | Replay animado da corrida (task 06) |
+
+O HTML carrega o SDK JS
+`@modelcontextprotocol/ext-apps@0.4.0` de `unpkg.com`. Fotos e bandeiras
+vêm de `media.formula1.com`. As duas origens entram em `resourceDomains`
+do CSP; sem isso o iframe bloqueia o script e as imagens.
+
 Regras:
 
 - View tools **consomem `services/` diretamente** — nunca o client, nunca
-  duplicam lógica de validação
+  duplicam lógica de validação. Por isso **não reaproveitam** o cache de
+  tool result das tools de dados (o middleware só envolve `tools/call`).
+  As view tools também ficam fora de `_TOOL_TTL_GROUPS` — ver
+  `docs/Cache_Strategy.md`, seção 4
 - Dados retornados devem ser **autossuficientes** para a view (o iframe não
-  chama outras tools no spike; se chamar, só da mesma conexão — ver 8)
+  chama outras tools; se chamar, só da mesma conexão — ver 8)
 - Toda view tool deve funcionar como tool de dados normal quando o host
-  não renderiza (fallback textual obrigatório)
+  não renderiza (fallback textual obrigatório). O Cursor não renderiza
+  MCP Apps; a validação visual é no `basic-host` do repositório
+  `modelcontextprotocol/ext-apps`
+- Texto de erro da tool que não começa com `{` ou `[` é exibido como
+  texto. A view não faz `JSON.parse` nele
+- `session_key` omitido ou vazio numa view que fã-out para a OpenF1
+  vira `"latest"` antes da primeira chamada, porque os validators exigem
+  filtro
+- Lógica de apresentação que depende do instante do replay (cores de
+  setor, clima, banner) fica na view. O payload carrega os tempos crus
 
 ## 5. Padrão de docstring das tools
 
@@ -242,5 +269,5 @@ Checklist obrigatório (copiar para a task correspondente):
 | Restrição de `path` via `Literal` | **Descartado** | Falha segura via 404 + `OpenF1APIError` é suficiente |
 | OpenTelemetry | Fase futura | Ver `Logging_Strategy.md`, seção 7 |
 | FastAPI | Fase futura | Reservado no `Technical_Reference.md` |
-| ~~MCP Apps (dashboards HTML)~~ | **Em andamento (task 05)** | Spike validado: padrão Custom HTML em `apps/` (ver 4.7) |
+| ~~MCP Apps (dashboards HTML)~~ | **Implementado (tasks 05 e 06)** | Custom HTML em `apps/`: board de campeonato e race replay (ver 4.7). Cursor não renderiza; fallback JSON. Validação visual no basic-host |
 | Dois servidores MCP (dados vs. views) | **Descartado** | A spec MCP Apps exige tool + resource `ui://` **na mesma conexão** (cross-server bloqueado); separação fica a nível de pacote (`tools/` vs `apps/`), ver 4.7 |

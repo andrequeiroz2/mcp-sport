@@ -22,7 +22,8 @@ cacheando **respostas de tools MCP**. O cache é:
   código
 
 Fora de escopo: cache distribuído (Redis), invalidação manual, cache de
-recursos/prompts (o servidor não expõe nenhum nesta fase).
+resources e prompts. O servidor expõe resources `ui://` (HTML das views);
+eles não passam pelo `ResponseCachingMiddleware`.
 
 ## 2. Mecanismo oficial
 
@@ -102,9 +103,11 @@ Critério de grupo: **volatilidade do dado**, não a tool em si.
 | Clima | **30min** | `get_weather` | Atualiza por minuto durante sessão |
 | Tempo real | **30s** | `get_intervals` | Atualiza a cada ~4s em corridas ao vivo |
 | `tools/list` | **30s** | (operação de listagem) | Handshake do cliente não rebuilda a cada conexão |
+| Views (exceção) | — | `get_drivers_championship_view`, `get_race_replay_view` | Fora de `_TOOL_TTL_GROUPS`. Chamam `services/` direto, então não reaproveitam o cache das tools de dados, e o resultado é um payload composto regenerado a cada chamada |
 
-**Regra obrigatória:** toda nova tool deve ser adicionada a exatamente um
-grupo em `_TOOL_TTL_GROUPS` no mesmo PR que a registra em `server.py`.
+**Regra obrigatória:** toda nova tool de dados deve ser adicionada a
+exatamente um grupo em `_TOOL_TTL_GROUPS` no mesmo PR que a registra em
+`server.py`. View tools (`apps/`) ficam de fora, pela exceção da tabela.
 
 ## 5. Configuração (variáveis de ambiente)
 
@@ -160,7 +163,7 @@ teste canônico de sanidade do cache (executado na validação da task 04).
 
 | Mudança | Onde | Cuidado |
 |---|---|---|
-| Nova tool | `_TOOL_TTL_GROUPS` | Exatamente um grupo; docstring com nota de cache se aceitar `"latest"` |
+| Nova tool de dados | `_TOOL_TTL_GROUPS` | Exatamente um grupo; docstring com nota de cache se aceitar `"latest"`. View tools ficam de fora (seção 4) |
 | Novo TTL | Constante + tupla em `_TOOL_TTL_GROUPS` | Atualizar a tabela da seção 4 **no mesmo commit** |
 | Trocar backend padrão | `_build_storage()` | Manter `None` = memória como caminho zero-config |
 | Desligar temporariamente | env var, **nunca** removendo código | `MCP_SPORT_CACHE_ENABLED=false` |

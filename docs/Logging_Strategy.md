@@ -41,7 +41,7 @@ Todo log server-side vai para `stderr`.
 | Logger | Responsabilidade |
 |---|---|
 | `mcp_sport.tools` | Entrada/saída e duração das tools |
-| `mcp_sport.openf1` | Chamadas à OpenF1 API (URL, status, latência) |
+| `mcp_sport.openf1` | Chamadas à OpenF1 API (URL, status, latência). HTTP 429/503 gera `event=openf1_retry` em warning antes da nova tentativa |
 
 - Nível via env var `MCP_SPORT_LOG_LEVEL` (default: `INFO`)
 - Formato estruturado: `timestamp level logger event key=value ...`

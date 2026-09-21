@@ -3,6 +3,8 @@ name = "mcp-sport"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "andrequeiroz2", email = "andrequeiroz.com@gmail.com" }
 ]

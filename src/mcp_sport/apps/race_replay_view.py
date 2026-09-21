@@ -7,8 +7,10 @@ with broadcast colors (purple = overall best so far, green = personal best,
 yellow = slower), PIT badges and a Safety Car / VSC banner.
 
 Data: /position (order) + /intervals (gaps) + /laps (sectors, leader laps)
-+ /stints (tyres) + /pit (pit windows) + /race_control (SC/VSC) + /drivers
-+ /sessions + /meetings (header) + /weather (track condition over time).
++ /stints (tyres) + /pit (pit windows) + /race_control (SC/VSC/red flag)
++ /drivers + /sessions + /meetings (header) + /weather (track condition)
++ /session_result (retirements). Sector colors are recomputed in the view
+at the displayed instant; the payload still carries unused baked colors.
 
 Fallback: hosts without MCP Apps support receive the same payload as JSON text.
 """
@@ -29,6 +31,7 @@ from mcp_sport.schemas.meetings import MeetingsInput
 from mcp_sport.schemas.pit_stops import PitStopsInput
 from mcp_sport.schemas.positions import PositionsInput
 from mcp_sport.schemas.race_control import RaceControlInput
+from mcp_sport.schemas.session_results import SessionResultsInput
 from mcp_sport.schemas.sessions import SessionsInput
 from mcp_sport.schemas.stints import StintsInput
 from mcp_sport.schemas.weather import WeatherInput
@@ -39,6 +42,7 @@ from mcp_sport.services import meetings as meetings_service
 from mcp_sport.services import pit_stops as pit_stops_service
 from mcp_sport.services import positions as positions_service
 from mcp_sport.services import race_control as race_control_service
+from mcp_sport.services import session_results as session_results_service
 from mcp_sport.services import sessions as sessions_service
 from mcp_sport.services import stints as stints_service
 from mcp_sport.services import weather as weather_service
@@ -84,7 +88,7 @@ _VIEW_HTML = """<!DOCTYPE html>
   .track { position: relative; height: 640px; overflow: hidden;
            background: #1a1a26; border-radius: 8px; }
   .strip {
-    position: absolute; top: 0; bottom: 0; left: 430px; width: 26px;
+    position: absolute; top: 0; bottom: 0; left: 580px; width: 26px;
     background-image:
       linear-gradient(45deg, #d8d8d8 25%, #2b2b2b 25%, #2b2b2b 75%, #d8d8d8 75%),
       linear-gradient(45deg, #d8d8d8 25%, #2b2b2b 25%, #2b2b2b 75%, #d8d8d8 75%);
@@ -111,7 +115,7 @@ _VIEW_HTML = """<!DOCTYPE html>
   }
   .car.p1 .pos { color: #ffd700; }
   .car.flash { box-shadow: 0 0 0 2px #ffd700; }
-  .car.lapped { opacity: 0.55; }
+  .car.retired { opacity: 0.45; }
   .tyre {
     width: 18px; height: 18px; border-radius: 50%; flex: none;
     display: flex; align-items: center; justify-content: center;
@@ -126,8 +130,16 @@ _VIEW_HTML = """<!DOCTYPE html>
   .sec.yellow { color: #e8e000; }
   .sec.green { color: #00d060; }
   .sec.purple { color: #c26bff; }
+  .laptime {
+    font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700;
+    color: #fff; min-width: 68px; text-align: right;
+  }
   .pitbadge {
     font-size: 9px; font-weight: 900; background: #e10600; color: #fff;
+    border-radius: 4px; padding: 2px 5px; letter-spacing: 0.5px;
+  }
+  .outbadge {
+    font-size: 9px; font-weight: 900; background: #6e6e7a; color: #fff;
     border-radius: 4px; padding: 2px 5px; letter-spacing: 0.5px;
   }
   .empty { padding: 24px; text-align: center; color: #9d9dab; }
@@ -167,10 +179,9 @@ _VIEW_HTML = """<!DOCTYPE html>
     <select id="speed">
       <option value="1">1x</option>
       <option value="10">10x</option>
-      <option value="60">60x</option>
-      <option value="120" selected>120x</option>
+      <option value="30">30x</option>
+      <option value="60" selected>60x</option>
       <option value="300">300x</option>
-      <option value="900">900x</option>
     </select>
     <span class="clock" id="clock">00:00:00</span>
     <span class="lapcounter" id="lapcounter"></span>
@@ -195,7 +206,7 @@ _VIEW_HTML = """<!DOCTYPE html>
     WET:          { bg: "#0067ff", fg: "#fff", letter: "W" },
   };
   let data = null;
-  let raceTime = 0, playing = false, speed = 120, lastFrame = null;
+  let raceTime = 0, playing = false, speed = 60, lastFrame = null;
   let eventIdx = 0;
   let lastLeaderLap = 0;
   const order = [];
@@ -217,6 +228,14 @@ _VIEW_HTML = """<!DOCTYPE html>
     return `${h}:${m}:${s}`;
   }
   function fmtSec(v) { return typeof v === "number" ? v.toFixed(3) : "—"; }
+  function fmtLap(seconds) {
+    if (typeof seconds !== "number") return "—";
+    const totalMs = Math.round(seconds * 1000);
+    const mins = Math.floor(totalMs / 60000);
+    const secs = Math.floor((totalMs % 60000) / 1000);
+    const ms = totalMs % 1000;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}:${String(ms).padStart(3, "0")}`;
+  }
 
   function fmtStart(iso, offset) {
     if (!iso) return "";
@@ -380,7 +399,12 @@ _VIEW_HTML = """<!DOCTYPE html>
   function renderSectors(el, driver, laps, t, bests) {
     const boxes = el.querySelectorAll(".sec");
     const idx = lapIndexAt(laps, t);
-    if (idx < 0) { boxes.forEach(b => { b.textContent = "—"; b.className = "sec"; }); return; }
+    if (idx < 0) {
+      boxes.forEach(b => { b.textContent = "—"; b.className = "sec"; });
+      const empty = el.querySelector(".laptime");
+      if (empty) empty.textContent = "—";
+      return;
+    }
     const cur = laps[idx];
     const prev = idx > 0 ? laps[idx - 1] : null;
     const [, tStart, dur] = cur;
@@ -399,6 +423,10 @@ _VIEW_HTML = """<!DOCTYPE html>
       boxes[i].textContent = fmtSec(src[3 + i]);
       boxes[i].className = "sec " + sectorClass(driver, i, src[3 + i], bests);
     }
+    const total = el.querySelector(".laptime");
+    const done = frac >= 1 ? cur : prev;
+    const lapDur = done ? done[2] : null;
+    total.textContent = fmtLap(lapDur);
   }
 
   function render() {
@@ -443,7 +471,6 @@ _VIEW_HTML = """<!DOCTYPE html>
       const secs = typeof gap === "number" ? gap : null;
       el.style.transform = `translate(${TRACK_LEFT}px, ${i * ROW_H}px)`;
       el.classList.toggle("p1", i === 0);
-      el.classList.toggle("lapped", lapped);
       el.querySelector(".pos").textContent = i + 1;
       el.querySelector(".gap").textContent =
         i === 0 ? "LEADER" : lapped ? gap : secs !== null ? "+" + secs.toFixed(1) + "s" : "";
@@ -459,6 +486,17 @@ _VIEW_HTML = """<!DOCTYPE html>
       tyreEl.textContent = style ? style.letter : "?";
 
       el.querySelector(".pitbadge").style.display = inPit(driver, raceTime) ? "" : "none";
+      const retired = (data.retirements || []).find(row => row[0] === driver);
+      const out = el.querySelector(".outbadge");
+      const abandoned = retired && raceTime >= retired[1];
+      el.classList.toggle("retired", !!abandoned);
+      out.style.display = abandoned ? "" : "none";
+      if (abandoned) {
+        out.textContent = retired[2];
+        el.querySelector(".gap").textContent = "";
+        el.querySelectorAll(".sec").forEach(box => { box.textContent = "--"; box.className = "sec"; });
+        el.querySelector(".laptime").textContent = "--:--:----";
+      }
     }
     renderConditions();
     $("clock").textContent = fmtClock(raceTime);
@@ -491,8 +529,10 @@ _VIEW_HTML = """<!DOCTYPE html>
         `<span class="acr">${d.name_acronym ?? d.driver_number}</span>` +
         `<span class="tyre"></span>` +
         `<span class="sectors"><span class="sec">—</span><span class="sec">—</span><span class="sec">—</span></span>` +
+        `<span class="laptime">—</span>` +
         `<span class="gap"></span>` +
-        `<span class="pitbadge" style="display:none">PIT</span>`;
+        `<span class="pitbadge" style="display:none">PIT</span>` +
+        `<span class="outbadge" style="display:none">OUT</span>`;
       track.appendChild(el);
       cars.set(d.driver_number, el);
       order.push(d.driver_number);
@@ -655,6 +695,35 @@ def _neutralisation_windows(messages: list, seconds, duration: float) -> list[li
     return windows
 
 
+def _retirements(results: list, laps_payload: dict[int, list[list]], duration: float) -> list[list]:
+    """Permanent abandonment markers: [driver_number, t_seconds, label].
+
+    DNF becomes visible at the end of the driver's last completed lap.
+    DNS is visible from the start. The tag stays on for the rest of the replay.
+    """
+    markers: list[list] = []
+    for result in results:
+        if result.dnf:
+            label = "OUT"
+        elif result.dns:
+            label = "DNS"
+        else:
+            continue
+        driver_laps = laps_payload.get(result.driver_number, [])
+        if result.dns or not result.number_of_laps:
+            t_out = 0.0
+        else:
+            last = next((lap for lap in driver_laps if lap[0] == result.number_of_laps), None)
+            if last is None:
+                t_out = duration
+            elif isinstance(last[2], (int, float)):
+                t_out = round(last[1] + last[2], 3)
+            else:
+                t_out = last[1]
+        markers.append([result.driver_number, t_out, label])
+    return markers
+
+
 def register(mcp: FastMCP) -> None:
     """Register the race replay view (MCP App, task 06) on the server."""
 
@@ -673,9 +742,12 @@ def register(mcp: FastMCP) -> None:
         cars stacked by official position with a checkered treadmill paced by
         the leader (a new lap opens when the leader crosses), tyre compound
         badges (red S / yellow M / white H), per-sector times with broadcast
-        colors (purple = overall best so far, green = personal best, yellow =
-        slower), PIT badges and a Safety Car / VSC banner. In other hosts the
-        same payload is returned as JSON text.
+        colors recomputed at the displayed instant (one purple per sector,
+        green = personal best, yellow = slower), the lap time as MM:SS:mmm,
+        PIT badges, a centered Safety Car / VSC / race-suspended banner, and
+        a header with circuit, local start time and track conditions. Retired
+        cars show a permanent OUT or DNS tag and drop gap, sectors and lap
+        time. In other hosts the same payload is returned as JSON text.
 
         Args:
             session_key: int | str — optional, positive int or 'latest'.
@@ -688,12 +760,14 @@ def register(mcp: FastMCP) -> None:
             str: JSON object with 'drivers' (meta), 'events' (position
             changes [t, driver, position]), 'gaps' (decimated [t, gap] per
             driver; gap is float seconds or '+N LAPS'), 'laps' (per driver:
-            [lap, t_start, lap_duration, s1, s2, s3, color1, color2, color3]
-            with colors precomputed best-so-far: -1 none, 0 yellow, 1 green,
-            2 purple), 'stints' (per driver: [lap_start, lap_end, compound]),
-            'pits' (per driver: [t_entry, t_exit]), 'sc' (SC/VSC windows
-            [t_start, t_end, type]), 'total_laps' and 'duration' (seconds).
-            Payload is typically 200-400 KB.
+            [lap, t_start, lap_duration, s1, s2, s3, color1, color2, color3];
+            the baked colors are best-so-far at set time and the HTML view
+            ignores them, recomputing a single live purple), 'stints', 'pits',
+            'retirements' ([driver, t, 'OUT'|'DNS']), 'sc' ([t_start, t_end,
+            'VSC'|'SC'|'RED']), 'weather', 'race' (meeting, circuit, flag,
+            local start), 'total_laps', 'duration' and 'session_key'.
+            Times are seconds from lights-out (lap 1), not the first position
+            sample. Payload is typically 200-400 KB. Not response-cached.
         """
         if session_key is None or (isinstance(session_key, str) and not session_key.strip()):
             session_key = "latest"
@@ -722,6 +796,9 @@ def register(mcp: FastMCP) -> None:
             )
             meeting = meetings[0] if meetings else None
         weather = weather_service.get_weather(WeatherInput(session_key=resolved_key))
+        session_results = session_results_service.get_session_results(
+            SessionResultsInput(session_key=resolved_key)
+        )
 
         # t0 is lights-out (lap 1), not the first position sample. OpenF1 starts
         # /position on the grid / formation lap — in Barcelona 2026 that is
@@ -771,6 +848,7 @@ def register(mcp: FastMCP) -> None:
             ]
 
         total_laps = max((lap.lap_number for lap in laps), default=0)
+        retirements = _retirements(session_results, laps_payload, duration)
 
         stints_payload: dict[int, list[list]] = {}
         for driver, driver_stints in _group_by_driver(stints, "lap_start").items():
@@ -833,6 +911,7 @@ def register(mcp: FastMCP) -> None:
             "laps": laps_payload,
             "stints": stints_payload,
             "pits": pits_payload,
+            "retirements": retirements,
             "sc": sc_payload,
         }
         result = json.dumps(payload)
