@@ -8,6 +8,7 @@
 > Documentos relacionados:
 > - `docs/Technical_Reference.md` — stack, versões e fontes oficiais
 > - `docs/Logging_Strategy.md` — estratégia de logs
+> - `docs/Cache_Strategy.md` — estratégia canônica de cache de respostas
 > - `tasks/01_mcpapi.md` — primeira aplicação prática destes padrões (referência viva)
 
 ## 1. Princípios arquiteturais
@@ -34,6 +35,7 @@
 src/mcp_sport/
 ├── __init__.py
 ├── server.py                # Entrypoint canônico: instância FastMCP + registro das tools
+├── cache_config.py          # Cache de respostas (ResponseCachingMiddleware, TTL por grupo)
 ├── exceptions.py            # Hierarquia de exceções de domínio
 ├── logging_config.py        # Logging em stderr (ver Logging_Strategy.md)
 ├── clients/
@@ -43,6 +45,7 @@ src/mcp_sport/
 ├── validators/
 │   └── <recurso>.py         # Validações de operação/negócio por recurso
 ├── services/
+│   ├── common.py             # build_params: mapeia campos amigáveis → chaves da API (operadores)
 │   └── <recurso>.py         # Orquestração: validator → client → conversão
 └── tools/
     └── <recurso>.py         # Tool MCP limpa + função register(mcp)
@@ -103,13 +106,19 @@ Regras do fluxo:
   não `model_fields_set` — clientes podem enviar todos os campos como `null`),
   valores especiais (`"latest"`), normalizações (uppercase, trim), combinações
   de filtros
+- Filtros de faixa: usar `validators/common.py::validate_range` (min ≤ max;
+  igualdade não combina com faixa no mesmo campo) e `validate_date_range`
+  (`date_from` < `date_to`, ISO 8601)
 - Erros via `ToolValidationError` com mensagem legível para a IA
 
 ### 4.4 `services/<recurso>.py`
 
 - Função pública por operação (ex.: `get_drivers(filters) -> list[Driver]`)
-- Monta `params` apenas com campos efetivamente informados
-  (`model_fields_set`)
+- Monta `params` via `services/common.py::build_params`, que inclui apenas
+  campos efetivamente informados (`model_fields_set`) e traduz campos de
+  faixa para chaves de operador da API usando a tabela `_OPERATOR_FIELDS`
+  do próprio módulo (ex.: `speed_min → "speed>="`) — ver
+  `tasks/03_operator_filters.md`, seção 3.4
 - Converte a resposta crua em modelos Pydantic — única conversão permitida
   nesta fase (sem transformação de valores)
 
@@ -117,6 +126,9 @@ Regras do fluxo:
 
 - `get(path: str, params: dict) -> list[dict]` — único ponto de I/O
 - Ignora params `None`; timeout de 10s; base URL como constante
+- Serialização própria (`_build_query`): a OpenF1 faz parsing *raw* da query
+  e **não decodifica chaves** — sufixos de operador (`>`, `>=`, `<`, `<=`)
+  são enviados literais, concatenados ao valor sem separador `=` extra
 - Encapsula `HTTPError`/`URLError`/`JSONDecodeError` em `OpenF1APIError`
 - Logs `openf1_request`/`openf1_response`/`openf1_error` (logger
   `mcp_sport.openf1`)
@@ -197,9 +209,10 @@ Checklist obrigatório (copiar para a task correspondente):
 | Tema | Estado | Motivo do adiamento |
 |---|---|---|
 | Async/httpx | Adiado | `urllib` sync suficiente para chamadas únicas; reavaliar com concorrência |
-| Filtros com operadores (`>=`, `<=`) e temporais | Adiado | Fase 1 usa apenas igualdade |
-| Cache de respostas | Adiado | Dados históricos são estáveis, mas sem necessidade atual |
+| ~~Filtros com operadores (`>=`, `<=`) e temporais~~ | **Implementado (task 03)** | Sufixos `_min`/`_max` inclusivos + `date_from`/`date_to` em 9 tools |
+| ~~Cache de respostas~~ | **Implementado (task 04)** | `ResponseCachingMiddleware` em `cache_config.py`, TTL por grupo de tools |
 | Testes automatizados | Adiado | Validação manual via Inspector nesta fase |
 | Restrição de `path` via `Literal` | **Descartado** | Falha segura via 404 + `OpenF1APIError` é suficiente |
 | OpenTelemetry | Fase futura | Ver `Logging_Strategy.md`, seção 7 |
 | FastAPI | Fase futura | Reservado no `Technical_Reference.md` |
+| MCP Apps (dashboards HTML) | Fase futura | Extensão oficial MCP Apps + FastMCP Apps; depende das tasks 03/04 |

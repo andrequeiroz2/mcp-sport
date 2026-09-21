@@ -19,6 +19,10 @@ def register(mcp: FastMCP) -> None:
         flag: str | None = None,
         category: str | None = None,
         scope: str | None = None,
+        lap_number_min: int | None = None,
+        lap_number_max: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[RaceControlMessage]:
         """Fetch race control events (flags, safety car, incidents) from OpenF1.
 
@@ -31,10 +35,16 @@ def register(mcp: FastMCP) -> None:
             category: str — optional, e.g., 'SessionStatus', 'CarEvent', 'Drs',
                 'Flag', 'SafetyCar'.
             scope: str — optional, e.g., 'Track', 'Driver', 'Sector'.
+            lap_number_min / lap_number_max: int — optional, >= 1. Lap range
+                (inclusive) to scope events to part of the race.
+            date_from / date_to: str — optional, ISO 8601 UTC bounds
+                (inclusive).
 
         Validations:
             - session_key or driver_number is required to scope the messages.
             - session_key accepts only a positive int or 'latest'.
+            - For lap_number_min/max, min must be <= max.
+            - date_from must be earlier than date_to; both must be ISO 8601.
 
         Returns:
             list[RaceControlMessage]: Events with date (ISO 8601 UTC), category,
@@ -55,5 +65,9 @@ def register(mcp: FastMCP) -> None:
             flag=flag,
             category=category,
             scope=scope,
+            lap_number_min=lap_number_min,
+            lap_number_max=lap_number_max,
+            date_from=date_from,
+            date_to=date_to,
         )
         return race_control_service.get_race_control(filters)

@@ -18,6 +18,24 @@ class PitStopsInput(BaseInput):
     lap_number: int | None = Field(
         default=None, ge=1, description="Lap on which the pit stop occurred"
     )
+    lap_number_min: int | None = Field(
+        default=None, ge=1, description="First lap of the range (inclusive)"
+    )
+    lap_number_max: int | None = Field(
+        default=None, ge=1, description="Last lap of the range (inclusive)"
+    )
+    lane_duration_min: float | None = Field(
+        default=None, gt=0, description="Minimum pit lane time in seconds (inclusive)"
+    )
+    lane_duration_max: float | None = Field(
+        default=None, gt=0, description="Maximum pit lane time in seconds (inclusive)"
+    )
+    date_from: str | None = Field(
+        default=None, description="Interval start, ISO 8601 UTC (inclusive)"
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class PitStop(BaseModel):

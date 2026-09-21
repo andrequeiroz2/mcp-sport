@@ -8,7 +8,7 @@ import json
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote
 from urllib.request import urlopen
 
 from mcp_sport.exceptions import OpenF1APIError
@@ -17,7 +17,27 @@ from mcp_sport.logging_config import get_logger
 BASE_URL = "https://api.openf1.org/v1"
 DEFAULT_TIMEOUT_SECONDS = 10
 
+_OPERATOR_SUFFIXES = (">=", "<=", ">", "<")
+
 logger = get_logger("openf1")
+
+
+def _build_query(params: dict[str, Any]) -> str:
+    """Serialize query params keeping OpenF1 operator suffixes literal.
+
+    The OpenF1 API parses the raw query string and does NOT percent-decode
+    parameter names: 'speed>=' must be sent literally. A key ending in an
+    operator suffix is joined to its value without an extra '=' separator
+    ('speed>=' + 315 -> 'speed>=315'); plain keys use the standard 'key=value'.
+    """
+    parts = []
+    for key, value in params.items():
+        if value is None:
+            continue
+        encoded_key = quote(str(key), safe="><=")
+        separator = "" if encoded_key.endswith(_OPERATOR_SUFFIXES) else "="
+        parts.append(f"{encoded_key}{separator}{quote(str(value))}")
+    return "&".join(parts)
 
 
 def get(path: str, params: dict[str, Any]) -> list[dict]:
@@ -33,7 +53,7 @@ def get(path: str, params: dict[str, Any]) -> list[dict]:
     Raises:
         OpenF1APIError: On network, HTTP or parsing failures.
     """
-    query = urlencode({k: v for k, v in params.items() if v is not None})
+    query = _build_query(params)
     url = f"{BASE_URL}/{path}?{query}" if query else f"{BASE_URL}/{path}"
 
     logger.info("event=openf1_request path=%s params=%s", path, query)

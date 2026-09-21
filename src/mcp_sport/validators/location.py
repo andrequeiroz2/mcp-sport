@@ -2,7 +2,14 @@
 
 from mcp_sport.exceptions import ToolValidationError
 from mcp_sport.schemas.location import LocationInput
-from mcp_sport.validators.common import normalize_key, require_at_least_one_filter
+from mcp_sport.validators.common import (
+    normalize_key,
+    require_at_least_one_filter,
+    validate_date_range,
+    validate_range,
+)
+
+_RANGE_FIELDS = ("x", "y", "z")
 
 
 def validate_location_input(data: LocationInput) -> LocationInput:
@@ -11,7 +18,7 @@ def validate_location_input(data: LocationInput) -> LocationInput:
     Raises:
         ToolValidationError: If session_key or driver_number is missing —
             location is sampled at ~3.7 Hz, so both are required to keep
-            responses bounded.
+            responses bounded — or a range filter is contradictory.
     """
     require_at_least_one_filter(data)
 
@@ -21,5 +28,9 @@ def validate_location_input(data: LocationInput) -> LocationInput:
             "session_key and driver_number are both required: car location is "
             "sampled at ~3.7 Hz and unscoped queries return huge responses"
         )
+
+    for field in _RANGE_FIELDS:
+        validate_range(data, field)
+    validate_date_range(data)
 
     return data

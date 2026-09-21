@@ -2,6 +2,7 @@
 
 from fastmcp import FastMCP
 
+from mcp_sport.cache_config import setup_cache
 from mcp_sport.logging_config import setup_logging
 from mcp_sport.tools import (
     car_data,
@@ -27,6 +28,8 @@ from mcp_sport.tools import (
 setup_logging()
 
 mcp = FastMCP("F1 Telemetry MCP 🏎️")
+
+setup_cache(mcp)
 
 drivers.register(mcp)
 sessions.register(mcp)

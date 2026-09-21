@@ -2,7 +2,12 @@
 
 from mcp_sport.exceptions import ToolValidationError
 from mcp_sport.schemas.positions import PositionsInput
-from mcp_sport.validators.common import normalize_key, require_at_least_one_filter
+from mcp_sport.validators.common import (
+    normalize_key,
+    require_at_least_one_filter,
+    validate_date_range,
+    validate_range,
+)
 
 
 def validate_positions_input(data: PositionsInput) -> PositionsInput:
@@ -11,7 +16,7 @@ def validate_positions_input(data: PositionsInput) -> PositionsInput:
     Raises:
         ToolValidationError: If no filter is provided, neither session_key nor
             meeting_key is given (position history is too broad without one),
-            or a key is invalid.
+            a key is invalid, or a range filter is contradictory.
     """
     require_at_least_one_filter(data)
 
@@ -22,5 +27,8 @@ def validate_positions_input(data: PositionsInput) -> PositionsInput:
         raise ToolValidationError(
             "session_key or meeting_key is required to scope position history"
         )
+
+    validate_range(data, "position")
+    validate_date_range(data)
 
     return data

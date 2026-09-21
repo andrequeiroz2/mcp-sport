@@ -33,6 +33,18 @@ class RaceControlInput(BaseInput):
         max_length=50,
         description="e.g., 'Track', 'Driver', 'Sector'",
     )
+    lap_number_min: int | None = Field(
+        default=None, ge=1, description="First lap of the range (inclusive)"
+    )
+    lap_number_max: int | None = Field(
+        default=None, ge=1, description="Last lap of the range (inclusive)"
+    )
+    date_from: str | None = Field(
+        default=None, description="Interval start, ISO 8601 UTC (inclusive)"
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class RaceControlMessage(BaseModel):

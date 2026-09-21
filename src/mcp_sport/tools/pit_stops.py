@@ -17,6 +17,12 @@ def register(mcp: FastMCP) -> None:
         session_key: int | str | None = None,
         driver_number: int | None = None,
         lap_number: int | None = None,
+        lap_number_min: int | None = None,
+        lap_number_max: int | None = None,
+        lane_duration_min: float | None = None,
+        lane_duration_max: float | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[PitStop]:
         """Fetch pit lane passes for an F1 session from OpenF1.
 
@@ -24,11 +30,22 @@ def register(mcp: FastMCP) -> None:
             session_key: int | str — required in practice, positive int or 'latest'.
                 Session identifier; use get_sessions to discover it.
             driver_number: int — optional, 1-99. Driver number for the season.
-            lap_number: int — optional, >= 1. Lap on which the stop occurred.
+            lap_number: int — optional, >= 1. Exact lap of the stop (do not
+                combine with lap_number_min/max).
+            lap_number_min / lap_number_max: int — optional, >= 1. Lap range
+                (inclusive).
+            lane_duration_min / lane_duration_max: float — optional, seconds.
+                Pit lane time range (inclusive). Example: lane_duration_max=25
+                returns only fast stops.
+            date_from / date_to: str — optional, ISO 8601 UTC bounds
+                (inclusive).
 
         Validations:
             - session_key is required: pit stop data is scoped per session.
             - session_key accepts only a positive int or 'latest'.
+            - lap_number cannot be combined with lap_number_min/lap_number_max;
+              for range pairs, min must be <= max.
+            - date_from must be earlier than date_to; both must be ISO 8601.
 
         Returns:
             list[PitStop]: Pit stops with date (ISO 8601 UTC), lap_number,
@@ -48,5 +65,11 @@ def register(mcp: FastMCP) -> None:
             session_key=session_key,
             driver_number=driver_number,
             lap_number=lap_number,
+            lap_number_min=lap_number_min,
+            lap_number_max=lap_number_max,
+            lane_duration_min=lane_duration_min,
+            lane_duration_max=lane_duration_max,
+            date_from=date_from,
+            date_to=date_to,
         )
         return pit_stops_service.get_pit_stops(filters)

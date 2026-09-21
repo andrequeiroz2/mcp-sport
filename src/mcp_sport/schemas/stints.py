@@ -24,6 +24,24 @@ class StintsInput(BaseInput):
         max_length=20,
         description="Tyre compound, e.g., 'SOFT', 'MEDIUM', 'HARD'",
     )
+    lap_start_min: int | None = Field(
+        default=None, ge=1, description="Minimum stint start lap (inclusive)"
+    )
+    lap_start_max: int | None = Field(
+        default=None, ge=1, description="Maximum stint start lap (inclusive)"
+    )
+    lap_end_min: int | None = Field(
+        default=None, ge=1, description="Minimum stint end lap (inclusive)"
+    )
+    lap_end_max: int | None = Field(
+        default=None, ge=1, description="Maximum stint end lap (inclusive)"
+    )
+    tyre_age_at_start_min: int | None = Field(
+        default=None, ge=0, description="Minimum tyre age in laps (inclusive)"
+    )
+    tyre_age_at_start_max: int | None = Field(
+        default=None, ge=0, description="Maximum tyre age in laps (inclusive)"
+    )
 
 
 class Stint(BaseModel):

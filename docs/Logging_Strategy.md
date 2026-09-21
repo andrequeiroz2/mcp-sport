@@ -27,6 +27,11 @@ O servidor roda em **stdio**: `stdout` é o canal do protocolo JSON-RPC.
 **Nenhum log ou `print()` pode ir para `stdout`** — corrompe o protocolo.
 Todo log server-side vai para `stderr`.
 
+> **Nota:** clientes MCP (Cursor, Inspector) exibem **todas** as linhas de
+> `stderr` com rótulo `[error]`, independentemente do nível real do log.
+> É apenas a forma como o cliente apresenta o stream — verifique o nível
+> no próprio conteúdo da linha (`INFO`, `ERROR`, ...), não no rótulo.
+
 ## 3. Camada 1 — Server-side (principal)
 
 - Módulo `logging` padrão do Python, handler em `stderr`

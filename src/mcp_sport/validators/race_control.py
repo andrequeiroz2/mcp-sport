@@ -2,7 +2,12 @@
 
 from mcp_sport.exceptions import ToolValidationError
 from mcp_sport.schemas.race_control import RaceControlInput
-from mcp_sport.validators.common import normalize_key, require_at_least_one_filter
+from mcp_sport.validators.common import (
+    normalize_key,
+    require_at_least_one_filter,
+    validate_date_range,
+    validate_range,
+)
 
 
 def validate_race_control_input(data: RaceControlInput) -> RaceControlInput:
@@ -10,7 +15,8 @@ def validate_race_control_input(data: RaceControlInput) -> RaceControlInput:
 
     Raises:
         ToolValidationError: If neither session_key nor driver_number is given
-            (unscoped race control history is too broad), or a key is invalid.
+            (unscoped race control history is too broad), a key is invalid,
+            or a range filter is contradictory.
     """
     require_at_least_one_filter(data)
 
@@ -23,5 +29,8 @@ def validate_race_control_input(data: RaceControlInput) -> RaceControlInput:
 
     if data.flag is not None:
         data.flag = data.flag.upper()
+
+    validate_range(data, "lap_number")
+    validate_date_range(data)
 
     return data

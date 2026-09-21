@@ -15,6 +15,43 @@ class CarDataInput(BaseInput):
     driver_number: int | None = Field(
         default=None, ge=1, le=99, description="Driver number for the season (1-99)"
     )
+    speed_min: int | None = Field(
+        default=None, ge=0, description="Minimum speed in km/h (inclusive)"
+    )
+    speed_max: int | None = Field(
+        default=None, ge=0, description="Maximum speed in km/h (inclusive)"
+    )
+    rpm_min: int | None = Field(
+        default=None, ge=0, description="Minimum engine rpm (inclusive)"
+    )
+    rpm_max: int | None = Field(
+        default=None, ge=0, description="Maximum engine rpm (inclusive)"
+    )
+    throttle_min: int | None = Field(
+        default=None, ge=0, le=100, description="Minimum throttle % (inclusive)"
+    )
+    throttle_max: int | None = Field(
+        default=None, ge=0, le=100, description="Maximum throttle % (inclusive)"
+    )
+    n_gear_min: int | None = Field(
+        default=None, ge=0, le=8, description="Minimum gear (inclusive)"
+    )
+    n_gear_max: int | None = Field(
+        default=None, ge=0, le=8, description="Maximum gear (inclusive)"
+    )
+    drs_min: int | None = Field(
+        default=None, ge=0, le=14, description="Minimum DRS status (inclusive)"
+    )
+    drs_max: int | None = Field(
+        default=None, ge=0, le=14, description="Maximum DRS status (inclusive)"
+    )
+    date_from: str | None = Field(
+        default=None,
+        description="Interval start, ISO 8601 UTC (inclusive), e.g. lap date_start",
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class CarData(BaseModel):

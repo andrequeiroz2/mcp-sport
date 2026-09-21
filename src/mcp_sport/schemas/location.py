@@ -15,6 +15,31 @@ class LocationInput(BaseInput):
     driver_number: int | None = Field(
         default=None, ge=1, le=99, description="Driver number for the season (1-99)"
     )
+    x_min: int | None = Field(
+        default=None, description="Minimum X coordinate (inclusive)"
+    )
+    x_max: int | None = Field(
+        default=None, description="Maximum X coordinate (inclusive)"
+    )
+    y_min: int | None = Field(
+        default=None, description="Minimum Y coordinate (inclusive)"
+    )
+    y_max: int | None = Field(
+        default=None, description="Maximum Y coordinate (inclusive)"
+    )
+    z_min: int | None = Field(
+        default=None, description="Minimum Z coordinate (inclusive)"
+    )
+    z_max: int | None = Field(
+        default=None, description="Maximum Z coordinate (inclusive)"
+    )
+    date_from: str | None = Field(
+        default=None,
+        description="Interval start, ISO 8601 UTC (inclusive), e.g. lap date_start",
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class Location(BaseModel):

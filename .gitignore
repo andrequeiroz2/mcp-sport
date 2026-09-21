@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Cache (file backend — see tasks/04_cache.md)
+.cache/

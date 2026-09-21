@@ -2,7 +2,17 @@
 
 from mcp_sport.clients import openf1
 from mcp_sport.schemas.pit_stops import PitStop, PitStopsInput
+from mcp_sport.services.common import build_params
 from mcp_sport.validators.pit_stops import validate_pit_stops_input
+
+_OPERATOR_FIELDS = {
+    "lap_number_min": "lap_number>=",
+    "lap_number_max": "lap_number<=",
+    "lane_duration_min": "lane_duration>=",
+    "lane_duration_max": "lane_duration<=",
+    "date_from": "date>=",
+    "date_to": "date<=",
+}
 
 
 def get_pit_stops(filters: PitStopsInput) -> list[PitStop]:
@@ -15,10 +25,5 @@ def get_pit_stops(filters: PitStopsInput) -> list[PitStop]:
         List of PitStop models converted from the raw API response.
     """
     validated = validate_pit_stops_input(filters)
-    params = {
-        key: value
-        for key, value in validated.model_dump().items()
-        if key in validated.model_fields_set
-    }
-    raw = openf1.get("pit", params)
+    raw = openf1.get("pit", build_params(validated, _OPERATOR_FIELDS))
     return [PitStop(**item) for item in raw]

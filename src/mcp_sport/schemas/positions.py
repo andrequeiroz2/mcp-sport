@@ -22,6 +22,18 @@ class PositionsInput(BaseInput):
     position: int | None = Field(
         default=None, ge=1, description="Position of the driver (starts at 1)"
     )
+    position_min: int | None = Field(
+        default=None, ge=1, description="Minimum position (inclusive)"
+    )
+    position_max: int | None = Field(
+        default=None, ge=1, description="Maximum position (inclusive)"
+    )
+    date_from: str | None = Field(
+        default=None, description="Interval start, ISO 8601 UTC (inclusive)"
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class Position(BaseModel):

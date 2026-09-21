@@ -15,6 +15,12 @@ class IntervalsInput(BaseInput):
     driver_number: int | None = Field(
         default=None, ge=1, le=99, description="Driver number for the season (1-99)"
     )
+    date_from: str | None = Field(
+        default=None, description="Interval start, ISO 8601 UTC (inclusive)"
+    )
+    date_to: str | None = Field(
+        default=None, description="Interval end, ISO 8601 UTC (inclusive)"
+    )
 
 
 class Interval(BaseModel):

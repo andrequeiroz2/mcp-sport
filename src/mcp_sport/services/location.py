@@ -2,7 +2,19 @@
 
 from mcp_sport.clients import openf1
 from mcp_sport.schemas.location import Location, LocationInput
+from mcp_sport.services.common import build_params
 from mcp_sport.validators.location import validate_location_input
+
+_OPERATOR_FIELDS = {
+    "x_min": "x>=",
+    "x_max": "x<=",
+    "y_min": "y>=",
+    "y_max": "y<=",
+    "z_min": "z>=",
+    "z_max": "z<=",
+    "date_from": "date>=",
+    "date_to": "date<=",
+}
 
 
 def get_location(filters: LocationInput) -> list[Location]:
@@ -15,10 +27,5 @@ def get_location(filters: LocationInput) -> list[Location]:
         List of Location models converted from the raw API response.
     """
     validated = validate_location_input(filters)
-    params = {
-        key: value
-        for key, value in validated.model_dump().items()
-        if key in validated.model_fields_set
-    }
-    raw = openf1.get("location", params)
+    raw = openf1.get("location", build_params(validated, _OPERATOR_FIELDS))
     return [Location(**item) for item in raw]
