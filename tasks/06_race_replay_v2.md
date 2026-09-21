@@ -4,7 +4,7 @@
 > **Criada em:** 2026-09-21
 > **Documentos relacionados:** `tasks/05_mcp_apps.md` (spike base validado),
 > `docs/Architectural_Design.md` (seção 4.7 — padrão `apps/`),
-> `src/mcp_sport/apps/race_replay.py` (v1 em produção)
+> `src/mcp_sport/apps/race_replay_view.py` (v1 em produção)
 
 ## 1. Contexto
 
@@ -163,4 +163,36 @@ Dentro do limite de 1 MB do cache e confortável para tool result.
 
 ## 8. Log de execução
 
-_(preencher na implementação)_
+### 2026-09-21 — v2 implementada
+
+**Servidor (`apps/race_replay_view.py`):**
+
+- Payload v2: `events` + `gaps` (v1) + `laps` (por piloto: volta, t_start,
+  duração, 3 setores + 3 cores) + `stints` + `pits` (janelas entrada→saída)
+  + `sc` (janelas SC/VSC) + `total_laps`
+- **Cores de setor pré-computadas** (`_compute_sector_colors`): laps
+  ordenados por timestamp de conclusão; roxo = novo melhor geral no momento,
+  verde = novo melhor pessoal, amarelo = mais lento, -1 = sem tempo
+- Janelas SC/VSC derivadas de `/race_control` categoria `SafetyCar`
+  (pares DEPLOYED → ENDING/IN THIS LAP; janela aberta fecha em `duration`)
+
+**View:**
+
+- Esteira quadriculada (padrão checker CSS) cujo scroll acompanha a fração
+  da volta do líder; flash + incremento do contador `LAP n/N` ao cruzar
+- Círculo de pneu por stint (S/M/H/I/W com cores oficiais)
+- Setores revelados progressivamente conforme o tempo cumulativo da volta
+  passa; cores vêm prontas do payload
+- Badge PIT na janela da parada; banner 🟨 SC/VSC no topo
+- Grid pré-start: eventos de posição em t=0 ordenam o grid
+
+**Validações (Barcelona 2026, session 11307):**
+
+- [x] Payload 238 KB (dentro da estimativa 200–250 KB)
+- [x] 2 janelas VSC detectadas corretamente (13:59–14:01, 14:29–14:33)
+- [x] Stints HAM: SOFT(1-11) → HARD(12-27) → MEDIUM(28-41) → HARD(42-66)
+- [x] 3 pits HAM com janelas coerentes (~22s cada)
+- [x] Cores: 20 roxos / 371 verdes / 3310 amarelos / 22 nulos — distribuição
+      realista (roxos só em recordes)
+- [x] Sintaxe JS validada (`node --check`)
+- [ ] Validação visual no basic-host

@@ -16,6 +16,8 @@ from mcp_sport.logging_config import get_logger
 
 BASE_URL = "https://api.openf1.org/v1"
 DEFAULT_TIMEOUT_SECONDS = 10
+_RETRY_STATUSES = {429, 503}
+_MAX_ATTEMPTS = 4
 
 _OPERATOR_SUFFIXES = (">=", "<=", ">", "<")
 
@@ -40,6 +42,14 @@ def _build_query(params: dict[str, Any]) -> str:
     return "&".join(parts)
 
 
+def _retry_delay(exc: HTTPError, attempt: int) -> float:
+    """Seconds to wait before retrying a rate-limited OpenF1 response."""
+    header = exc.headers.get("Retry-After") if exc.headers else None
+    if header and header.isdigit():
+        return min(float(header), 15)
+    return float(2 ** (attempt - 1))
+
+
 def get(path: str, params: dict[str, Any]) -> list[dict]:
     """Perform a GET request to the OpenF1 API.
 
@@ -58,18 +68,33 @@ def get(path: str, params: dict[str, Any]) -> list[dict]:
 
     logger.info("event=openf1_request path=%s params=%s", path, query)
     start = time.perf_counter()
-    try:
-        with urlopen(url, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        logger.exception("event=openf1_error path=%s status=%s", path, exc.code)
-        raise OpenF1APIError(url, f"HTTP {exc.code}") from exc
-    except URLError as exc:
-        logger.exception("event=openf1_error path=%s", path)
-        raise OpenF1APIError(url, str(exc.reason)) from exc
-    except json.JSONDecodeError as exc:
-        logger.exception("event=openf1_error path=%s", path)
-        raise OpenF1APIError(url, "invalid JSON response") from exc
+    data = None
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            with urlopen(url, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except HTTPError as exc:
+            if exc.code in _RETRY_STATUSES and attempt < _MAX_ATTEMPTS:
+                delay = _retry_delay(exc, attempt)
+                logger.warning(
+                    "event=openf1_retry path=%s status=%s attempt=%d delay_s=%.1f",
+                    path,
+                    exc.code,
+                    attempt,
+                    delay,
+                )
+                exc.close()
+                time.sleep(delay)
+                continue
+            logger.exception("event=openf1_error path=%s status=%s", path, exc.code)
+            raise OpenF1APIError(url, f"HTTP {exc.code}") from exc
+        except URLError as exc:
+            logger.exception("event=openf1_error path=%s", path)
+            raise OpenF1APIError(url, str(exc.reason)) from exc
+        except json.JSONDecodeError as exc:
+            logger.exception("event=openf1_error path=%s", path)
+            raise OpenF1APIError(url, "invalid JSON response") from exc
 
     duration_ms = (time.perf_counter() - start) * 1000
     logger.info(
