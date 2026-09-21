@@ -2,6 +2,7 @@
 
 from fastmcp import FastMCP
 
+from mcp_sport.apps import championship_view, race_replay
 from mcp_sport.cache_config import setup_cache
 from mcp_sport.logging_config import setup_logging
 from mcp_sport.tools import (
@@ -49,6 +50,8 @@ car_data.register(mcp)
 location.register(mcp)
 championship_drivers.register(mcp)
 championship_teams.register(mcp)
+championship_view.register(mcp)
+race_replay.register(mcp)
 
 
 if __name__ == "__main__":

@@ -47,12 +47,15 @@ src/mcp_sport/
 ├── services/
 │   ├── common.py             # build_params: mapeia campos amigáveis → chaves da API (operadores)
 │   └── <recurso>.py         # Orquestração: validator → client → conversão
-└── tools/
-    └── <recurso>.py         # Tool MCP limpa + função register(mcp)
+├── tools/
+│   └── <recurso>.py         # Tool MCP limpa + função register(mcp)
+└── apps/
+    └── <view>.py            # MCP Apps: view tools + resources ui:// (ver 4.7)
 ```
 
 **Um módulo por recurso** em cada pacote (`drivers.py`, `laps.py`, `pit.py`...).
-Recursos aqui correspondem aos endpoints da OpenF1.
+Recursos aqui correspondem aos endpoints da OpenF1. O pacote `apps/` é a
+exceção: um módulo por **view** (uma view pode compor vários recursos).
 
 ## 3. Fluxo de uma chamada
 
@@ -143,6 +146,30 @@ Hierarquia única de domínio:
 | `OpenF1APIError` | Falhas de rede/HTTP/parsing na OpenF1 |
 | `ToolValidationError` | Validação semântica de entrada (pré-API) |
 
+### 4.7 `apps/<view>.py` — MCP Apps (componentes visuais)
+
+View tools que retornam UIs HTML interativas (extensão MCP Apps do
+protocolo). Padrão adotado: **Custom HTML** (sem dependência `prefab-ui`).
+
+Cada módulo contém:
+
+1. **Resource `ui://...`** — serve o HTML da view; o FastMCP atribui
+   automaticamente o mime `text/html;profile=mcp-app`. Origens externas
+   (CDN de JS, imagens) **devem** ser declaradas em
+   `meta={"ui": {"csp": {"resourceDomains": [...]}}}`
+2. **View tool** — `@mcp.tool(app=AppConfig(resource_uri=..., csp=...))`;
+   retorna os dados da view como JSON texto (que é também o **fallback**
+   para hosts sem suporte a MCP Apps — ex.: Cursor)
+
+Regras:
+
+- View tools **consomem `services/` diretamente** — nunca o client, nunca
+  duplicam lógica de validação
+- Dados retornados devem ser **autossuficientes** para a view (o iframe não
+  chama outras tools no spike; se chamar, só da mesma conexão — ver 8)
+- Toda view tool deve funcionar como tool de dados normal quando o host
+  não renderiza (fallback textual obrigatório)
+
 ## 5. Padrão de docstring das tools
 
 **Sempre em inglês** — é parseada pelo FastMCP e injetada no `inputSchema` que
@@ -215,4 +242,5 @@ Checklist obrigatório (copiar para a task correspondente):
 | Restrição de `path` via `Literal` | **Descartado** | Falha segura via 404 + `OpenF1APIError` é suficiente |
 | OpenTelemetry | Fase futura | Ver `Logging_Strategy.md`, seção 7 |
 | FastAPI | Fase futura | Reservado no `Technical_Reference.md` |
-| MCP Apps (dashboards HTML) | Fase futura | Extensão oficial MCP Apps + FastMCP Apps; depende das tasks 03/04 |
+| ~~MCP Apps (dashboards HTML)~~ | **Em andamento (task 05)** | Spike validado: padrão Custom HTML em `apps/` (ver 4.7) |
+| Dois servidores MCP (dados vs. views) | **Descartado** | A spec MCP Apps exige tool + resource `ui://` **na mesma conexão** (cross-server bloqueado); separação fica a nível de pacote (`tools/` vs `apps/`), ver 4.7 |
