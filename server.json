@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.andrequeiroz2/mcp-sport",
+  "title": "MCP Sport",
+  "description": "MCP server that exposes Formula 1 data from the OpenF1 API.",
+  "repository": {
+    "url": "https://github.com/andrequeiroz2/mcp-sport",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-sport",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

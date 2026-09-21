@@ -1,7 +1,7 @@
 [project]
 name = "mcp-sport"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server that exposes Formula 1 data from the OpenF1 API."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

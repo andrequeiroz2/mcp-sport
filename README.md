@@ -1,5 +1,7 @@
 # MCP Sport — F1 Telemetry MCP 🏎️
 
+<!-- mcp-name: io.github.andrequeiroz2/mcp-sport -->
+
 ![Animated race replay](assets/mcp_f1_race_view.png)
 
 An **MCP (Model Context Protocol)** server that exposes Formula 1 data from the

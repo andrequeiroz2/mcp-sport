@@ -130,8 +130,26 @@ Código-fonte, issues e exemplos oficiais.
 | MCP Servers (exemplos oficiais) | https://github.com/modelcontextprotocol/servers |
 | FastAPI | https://github.com/fastapi/fastapi |
 | Pydantic | https://github.com/pydantic/pydantic |
+| MCP Registry | https://github.com/modelcontextprotocol/registry |
 
-## 9. Regras de Uso deste Documento
+## 9. MCP Registry e PyPI
+
+Catálogo oficial de servidores MCP públicos. O registry guarda só o metadado
+(`server.json`); o pacote Python é publicado no PyPI. Está em preview.
+
+| Tópico | Link |
+|---|---|
+| Registry (descoberta) | https://registry.modelcontextprotocol.io/ |
+| Quickstart de publicação | https://modelcontextprotocol.io/registry/quickstart |
+| Tipos de pacote (PyPI) | https://modelcontextprotocol.io/registry/package-types |
+| Autenticação | https://modelcontextprotocol.io/registry/authentication |
+| Versionamento | https://modelcontextprotocol.io/registry/versioning |
+| PyPI | https://pypi.org/ |
+| Schema `server.json` | https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json |
+
+Nome deste servidor: `io.github.andrequeiroz2/mcp-sport`. Transporte do pacote: stdio.
+
+## 10. Regras de Uso deste Documento
 
 1. **Fonte da verdade:** qualquer implementação deve ser validada contra os links
    oficiais acima antes de assumir comportamento por memória.
